@@ -2,6 +2,7 @@
 using System.Collections;
 using System.Collections.Generic;
 using System.IO;
+using System.Net.NetworkInformation;
 using UnityEngine;
 using UnityEngine.UI;
 
@@ -33,6 +34,9 @@ namespace WebSocketApp
 
         [SerializeField]
         private Text _connectionInfoText = null;
+
+        [SerializeField]
+        private Text _ipAddressText = null;
 
         [SerializeField]
         private Text _receivedFileText = null;
@@ -80,6 +84,19 @@ namespace WebSocketApp
         private bool Setup()
         {
             Application.logMessageReceivedThreaded += ReceiveLogMessage;
+
+            // 接続中のWiFiのIPアドレスを取得
+            // NOTE: 多分あんまりいい方法ではないのだけど、、、とりあえず正しい値を取れてはいる
+            string address = GetIPAddress("en1");
+            if (string.IsNullOrEmpty(address))
+            {
+                address = GetIPAddress("en0");
+            }
+            if (string.IsNullOrEmpty(address))
+            {
+                address = GetIPAddress();
+            }
+            _ipAddressText.text = "【WiFiのIPアドレス】" + (string.IsNullOrEmpty(address) ? "" : address);
 
             if (_connection == null)
             {
@@ -491,6 +508,33 @@ namespace WebSocketApp
             }
 
             _connection.SendMessage(new SocketLogMessage(type, logString.Length <= _maxLogLength ? logString : logString.Substring(0, _maxLogLength), stackTrace));
+        }
+
+        private string GetIPAddress(string idFilter = "")
+        {
+            foreach (var networkInterface in NetworkInterface.GetAllNetworkInterfaces())
+            {
+                if (networkInterface.NetworkInterfaceType != NetworkInterfaceType.Wireless80211 &&
+                    networkInterface.NetworkInterfaceType != NetworkInterfaceType.Ethernet)
+                {
+                    continue;
+                }
+
+                if (!string.IsNullOrEmpty(idFilter) && networkInterface.Id != idFilter)
+                {
+                    continue;
+                }
+
+                foreach (var ip in networkInterface.GetIPProperties().UnicastAddresses)
+                {
+                    if (ip.Address.AddressFamily != System.Net.Sockets.AddressFamily.InterNetwork)
+                    {
+                        continue;
+                    }
+                    return ip.Address.ToString();
+                }
+            }
+            return "";
         }
 
         private void OnDestroy()
